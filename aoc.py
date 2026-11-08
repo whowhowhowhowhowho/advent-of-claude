@@ -3,36 +3,25 @@
 
 Layout per puzzle:
     YYYY/dayNN/
-        solution.py    defines part1(text) and part2(text), each returning a number
-                       (add an `example` parameter to be told whether the example is running)
-        example.txt    example input (example2.txt optionally overrides it for part 2)
-        expected1.txt  expected example answer for part 1
-        expected2.txt  expected example answer for part 2 (add once part 2 is unlocked)
-        input.txt      real puzzle input
+        description1.txt  puzzle description for part 1
+        description2.txt  puzzle description for part 2 (add once part 2 is unlocked)
+        example.txt       example input (example2.txt optionally overrides it for part 2)
+        expected1.txt     expected example answer for part 1
+        expected2.txt     expected example answer for part 2 (add once part 2 is unlocked)
+        input.txt         real puzzle input
+        solution.py       written by the agent: part1(text) and part2(text), each returning a number
 
 Usage:
-    python3 aoc.py new 2026 3    scaffold 2026/day03/
+    python3 aoc.py new 2026 3    scaffold 2026/day03/ with empty puzzle files to fill in
     python3 aoc.py 2026 3        test both parts against the example, then solve input
     python3 aoc.py 2026 3 2      same, but only part 2
 """
 import importlib.util
-import inspect
 import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-
-TEMPLATE = '''\
-def part1(text: str) -> int:
-    lines = text.splitlines()
-    raise NotImplementedError
-
-
-def part2(text: str) -> int:
-    lines = text.splitlines()
-    raise NotImplementedError
-'''
 
 GREEN, RED, YELLOW, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
 
@@ -44,7 +33,12 @@ def day_dir(year: str, day: str) -> Path:
 def read(path: Path) -> str | None:
     if not path.exists():
         return None
-    return path.read_text().rstrip("\n") or None  # empty file counts as missing
+    # drop trailing blank (or whitespace-only) lines, but keep trailing spaces on the
+    # last real line - some puzzles are column-aligned; an empty file counts as missing
+    lines = path.read_text().splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines) or None
 
 
 def load_solution(folder: Path):
@@ -54,10 +48,9 @@ def load_solution(folder: Path):
     return module
 
 
-def timed(fn, text, example):
-    kwargs = {"example": example} if "example" in inspect.signature(fn).parameters else {}
+def timed(fn, text):
     start = time.perf_counter()
-    result = fn(text, **kwargs)
+    result = fn(text)
     return result, time.perf_counter() - start
 
 
@@ -72,7 +65,7 @@ def run_part(folder: Path, module, part: int) -> bool:
         return False
 
     try:
-        got, dt = timed(fn, example, True)
+        got, dt = timed(fn, example)
     except NotImplementedError:
         print(f"{YELLOW}part {part}: not implemented{RESET}")
         return False
@@ -85,7 +78,7 @@ def run_part(folder: Path, module, part: int) -> bool:
     if puzzle is None:
         print(f"{YELLOW}part {part}: no input.txt{RESET}")
         return False
-    answer, dt = timed(fn, puzzle, False)
+    answer, dt = timed(fn, puzzle)
     print(f"part {part}: ANSWER        {answer}  ({dt * 1000:.1f} ms)")
     return True
 
@@ -93,11 +86,9 @@ def run_part(folder: Path, module, part: int) -> bool:
 def new(year: str, day: str) -> None:
     folder = day_dir(year, day)
     folder.mkdir(parents=True, exist_ok=True)
-    files = {"solution.py": TEMPLATE, "example.txt": "", "expected1.txt": "", "input.txt": ""}
-    for name, content in files.items():
-        path = folder / name
-        if not path.exists():
-            path.write_text(content)
+    files = ["description1.txt", "example.txt", "expected1.txt", "input.txt"]
+    for name in files:
+        (folder / name).touch()
     print(f"created {folder.relative_to(ROOT)}/ with {', '.join(files)}")
 
 
@@ -112,7 +103,7 @@ def main(argv: list[str]) -> int:
     year, day = argv[:2]
     folder = day_dir(year, day)
     if not (folder / "solution.py").exists():
-        print(f"{folder.relative_to(ROOT)}/solution.py not found - run: python3 aoc.py new {year} {day}")
+        print(f"{folder.relative_to(ROOT)}/solution.py not found - solve it with: /solve {year} {day}")
         return 1
     module = load_solution(folder)
     parts = [int(argv[2])] if len(argv) > 2 else [1, 2]
